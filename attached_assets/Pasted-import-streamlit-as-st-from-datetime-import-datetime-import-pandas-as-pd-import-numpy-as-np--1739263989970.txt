@@ -1,0 +1,443 @@
+import streamlit as st
+from datetime import datetime
+import pandas as pd
+import numpy as np
+
+# ===== MOCK SERVICES (Replace with real data/logic) ===== #
+class RealTimeDataService:
+    def generate_mock_data(self, symbol, num_points=100):
+        """Generate mock market data. Replace with real data retrieval from NSE/BSE or your data provider."""
+        dates = pd.date_range(end=datetime.now(), periods=num_points)
+        data = {
+            'date': dates,
+            'open': np.random.normal(loc=100, scale=2, size=num_points),
+            'high': np.random.normal(loc=102, scale=2, size=num_points),
+            'low': np.random.normal(loc=98, scale=2, size=num_points),
+            'close': np.random.normal(loc=100, scale=2, size=num_points),
+            'volume': np.random.normal(loc=1000, scale=200, size=num_points).astype(int)
+        }
+        return pd.DataFrame(data)
+
+class ExchangeService:
+    """Placeholder for exchange-specific operations (e.g. Binance, Zerodha, Upstox, etc.)."""
+    pass
+
+
+# ===== BACKTEST & METRICS PLACEHOLDERS ===== #
+def run_backtest():
+    """Placeholder for the backtest logic."""
+    st.success("Backtest completed successfully! (Mock)")
+
+def display_performance_metrics():
+    """Placeholder for performance metrics display with colorful metrics."""
+    st.markdown("#### Performance Metrics")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Return", "10%")
+    with col2:
+        st.metric("Annualized Return", "8%")
+    with col3:
+        st.metric("Sharpe Ratio", "1.2")
+    with col4:
+        st.metric("Max Drawdown", "5%")
+
+    col5, col6, col7, col8 = st.columns(4)
+    with col5:
+        st.metric("Sortino Ratio", "1.5")
+    with col6:
+        st.metric("Win Rate", "60%")
+    with col7:
+        st.metric("Num Trades", "10")
+    with col8:
+        st.metric("Avg. Holding", "3 days")
+
+    st.markdown("---")
+
+def display_trade_logs():
+    """Displays a mock trade log in an interactive data editor (read-only)."""
+    st.markdown("#### Trade Logs")
+    mock_logs = [
+        {
+            "Trade #": 1,
+            "Symbol": "AAPL",
+            "Entry Price": 150,
+            "Exit Price": 155,
+            "P/L": "+5",
+            "Holding Period": "2 days"
+        },
+        {
+            "Trade #": 2,
+            "Symbol": "TSLA",
+            "Entry Price": 700,
+            "Exit Price": 690,
+            "P/L": "-10",
+            "Holding Period": "1 day"
+        },
+    ]
+    df_logs = pd.DataFrame(mock_logs)
+    st.data_editor(
+        df_logs,
+        height=200,
+        use_container_width=True,
+        disabled=True  # Make read-only
+    )
+
+# ===== MAIN APP ===== #
+def main():
+    # ===== PAGE CONFIG & CUSTOM STYLING ===== #
+    st.set_page_config(
+        page_title="AI Trading Platform - Best in Class",
+        page_icon="📈",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
+
+    # Custom CSS for sophisticated look
+    custom_css = """
+    <style>
+        /* MAIN/BACKGROUND */
+        .main, .block-container {
+            background-color: #F7F7F7;
+        }
+        /* SIDEBAR */
+        [data-testid="stSidebar"] {
+            background: linear-gradient(to bottom, #2C3E50 0%, #34495E 100%);
+            color: #ECF0F1;
+        }
+        [data-testid="stSidebar"] .block-container {
+            padding: 1rem;
+        }
+        [data-testid="stSidebar"] label, 
+        [data-testid="stSidebar"] div, 
+        [data-testid="stSidebar"] span {
+            color: #ECF0F1 !important;
+        }
+        /* EXPANDER HEADER */
+        .streamlit-expanderHeader {
+            font-weight: bold;
+            font-size: 1rem;
+            color: #ECF0F1;
+        }
+        /* TABS */
+        div[data-testid="stTabs"] button[data-baseweb="tab"] {
+            font-size: 1rem;
+            background-color: #EAECEE;
+            color: #2C3E50;
+        }
+        div[data-testid="stTabs"] button[data-baseweb="tab"]:hover {
+            background-color: #D7DBDD;
+        }
+        div[data-testid="stTabs"] button[data-baseweb="tab"].css-1n76uvr {
+            background-color: #BDC3C7; /* Active tab color */
+            color: #2C3E50;
+        }
+        /* METRICS */
+        .css-1ht1j8u {
+            background-color: #FFFFFF;
+            border: 1px solid #D5D8DC;
+            border-radius: 8px;
+            padding: 1rem;
+        }
+        .css-1ht1j8u .css-1v0mbdj {
+            color: #2980B9;
+        }
+        /* BUTTONS */
+        .stButton>button {
+            background-color: #2980B9;
+            color: #ECF0F1;
+            border-radius: 6px;
+            border: none;
+        }
+        .stButton>button:hover {
+            background-color: #1F618D;
+        }
+        /* SPACING */
+        .block-container {
+            padding-top: 1rem;
+        }
+    </style>
+    """
+    st.markdown(custom_css, unsafe_allow_html=True)
+
+    # ===== SIDEBAR SECTIONS ===== #
+    st.sidebar.title("Backtesting & Strategy")
+
+    # 1. Historical Data Integration
+    with st.sidebar.expander("1. Historical Data Integration", expanded=True):
+        data_source = st.text_input("Data Source URL / File:", placeholder="Enter NSE/BSE data source path")
+        timeframe = st.selectbox("Choose Timeframe:", ["1m", "5m", "15m", "1h", "1d", "1w"])
+        adjust_splits = st.checkbox("Adjust for Splits", value=True)
+        adjust_dividends = st.checkbox("Adjust for Dividends", value=True)
+
+        st.markdown("**Global Markets**")
+        col_a, col_b = st.columns(2)
+        with col_a:
+            stocks = st.checkbox("Stocks", value=True)
+            etfs = st.checkbox("ETFs")
+        with col_b:
+            futures = st.checkbox("Futures")
+            crypto = st.checkbox("Cryptocurrencies")
+
+        st.button("Upload Data")
+
+    # 2. Strategy Customization
+    with st.sidebar.expander("2. Strategy Customization", expanded=False):
+        st.markdown("**Custom Indicators**")
+        indicator_script = st.text_area("Script/Logic", "function customIndicator(data) { ... }")
+
+        st.markdown("**Rule-Based Logic**")
+        col_c, col_d = st.columns(2)
+        with col_c:
+            entry_rule = st.text_input("Entry Rule:", "price > SMA(50)")
+        with col_d:
+            exit_rule = st.text_input("Exit Rule:", "price < SMA(50)")
+
+        st.markdown("**Portfolio-Level**")
+        portfolio_assets = st.text_input("Assets:", "AAPL, TSLA, BTC-USD")
+
+        st.markdown("**Event-Driven**")
+        col_e, col_f = st.columns(2)
+        with col_e:
+            event_source = st.text_input("Event Source URL:", "https://example.com/earnings-calendar")
+        with col_f:
+            event_filter = st.text_input("Filter:", "Earnings")
+
+        st.button("Apply Strategy")
+
+    # 3. Risk Management
+    with st.sidebar.expander("3. Risk Management", expanded=False):
+        sizing_option = st.radio("Position Sizing", ["Fixed $", "% of Capital"])
+        stop_loss = st.number_input("Stop-Loss (%)", min_value=0.0, max_value=100.0, value=5.0)
+        take_profit = st.number_input("Take-Profit (%)", min_value=0.0, max_value=100.0, value=10.0)
+        leverage = st.text_input("Leverage (e.g. 2x)", "2x")
+        use_atr = st.checkbox("Use ATR-based sizing")
+
+    # 4. Execution Simulation
+    with st.sidebar.expander("4. Execution Simulation", expanded=False):
+        slippage = st.number_input("Slippage (% or cents)", value=0.01)
+        commission = st.number_input("Commission ($)", value=5.0)
+        order_type = st.selectbox("Order Type", ["Market", "Limit", "Stop-Limit"])
+        latency = st.number_input("Latency (ms)", value=100)
+
+    # ===== 50 ADVANCED FEATURES SECTION ===== #
+    with st.sidebar.expander("5. Industry-Ready Advanced Tools (50 Features)", expanded=False):
+        st.caption("**Deep scan for every single edge in the Indian stock market**")
+
+        # Group features in sub-expanders for clarity (10 features each => 5 groups => total 50)
+        with st.expander("5.1 Market Scans & Fundamentals"):
+            # Feature 1
+            f1 = st.checkbox("1. Bulk/Block Deal Scanner")
+            # Feature 2
+            f2 = st.checkbox("2. FII/DII Flow Analysis")
+            # Feature 3
+            f3 = st.checkbox("3. Equity Delivery % Scanner")
+            # Feature 4
+            f4 = st.checkbox("4. Promoter Holding Changes")
+            # Feature 5
+            f5 = st.checkbox("5. Corporate Announcements (Bonus, Rights, Splits)")
+            # Feature 6
+            f6 = st.checkbox("6. ESG & Green Stocks Filter")
+            # Feature 7
+            f7 = st.checkbox("7. Fundamental Ratios (PE, PB, etc.)")
+            # Feature 8
+            f8 = st.checkbox("8. Altman Z-score Screening")
+            # Feature 9
+            f9 = st.checkbox("9. Live News & Sentiment (India-specific)")
+            # Feature 10
+            f10 = st.checkbox("10. Sector Rotation Heatmap")
+
+        with st.expander("5.2 Options & Derivatives"):
+            # Feature 11
+            f11 = st.checkbox("11. Option Chain Analyzer (Nifty, BankNifty, etc.)")
+            # Feature 12
+            f12 = st.checkbox("12. Open Interest (OI) Real-time Tracking")
+            # Feature 13
+            f13 = st.checkbox("13. Option Greeks (Delta, Gamma, Theta, Vega, Rho)")
+            # Feature 14
+            f14 = st.checkbox("14. Max Pain Analysis for Expiry")
+            # Feature 15
+            f15 = st.checkbox("15. Volatility Index (India VIX) Correlation")
+            # Feature 16
+            f16 = st.checkbox("16. Advanced Strategy Builder (Iron Condor, etc.)")
+            # Feature 17
+            f17 = st.checkbox("17. Hedging & Pair Trades (Nifty-BankNifty, etc.)")
+            # Feature 18
+            f18 = st.checkbox("18. Roll-over Analysis for Futures")
+            # Feature 19
+            f19 = st.checkbox("19. Arbitrage Scanner (Cash-Futures)")
+            # Feature 20
+            f20 = st.checkbox("20. Intraday Greeks Decay Visualizer")
+
+        with st.expander("5.3 Technical & Quant"):
+            # Feature 21
+            f21 = st.checkbox("21. TPO/Market Profile Charts")
+            # Feature 22
+            f22 = st.checkbox("22. Volume Spread Analysis (VSA)")
+            # Feature 23
+            f23 = st.checkbox("23. Candle Pattern Recognition (Engulfing, Doji, etc.)")
+            # Feature 24
+            f24 = st.checkbox("24. Pivot Points & Camarilla Levels")
+            # Feature 25
+            f25 = st.checkbox("25. Gann Square & Lines Tools")
+            # Feature 26
+            f26 = st.checkbox("26. Fibonacci Retracements Scanner")
+            # Feature 27
+            f27 = st.checkbox("27. Multi-Timeframe Trend & RSI Dashboard")
+            # Feature 28
+            f28 = st.checkbox("28. Heiken Ashi / Renko / Kagi Charts")
+            # Feature 29
+            f29 = st.checkbox("29. Correlation Matrix (Across Sectors)")
+            # Feature 30
+            f30 = st.checkbox("30. Algo Multi-Indicator Alerts (Email/SMS)")
+
+        with st.expander("5.4 Machine Learning & AI - Indian Market Focus"):
+            # Feature 31
+            f31 = st.checkbox("31. Advanced Labeling (Triple-Barrier Method)")
+            # Feature 32
+            f32 = st.checkbox("32. Feature Engineering (Lagged, Rolling Stats)")
+            # Feature 33
+            f33 = st.checkbox("33. Model Ensembling (Stacking, Blending)")
+            # Feature 34
+            f34 = st.checkbox("34. Hyperparameter Tuning (Bayesian, Optuna, etc.)")
+            # Feature 35
+            f35 = st.checkbox("35. Time-Series Cross Validation (Walk-Forward)")
+            # Feature 36
+            f36 = st.checkbox("36. Auto-encoder Anomaly Detection on Price/Volume")
+            # Feature 37
+            f37 = st.checkbox("37. NLP Sentiment on Indian News Feeds")
+            # Feature 38
+            f38 = st.checkbox("38. Transfer Learning for Low-Volume Stocks")
+            # Feature 39
+            f39 = st.checkbox("39. Reinforcement Learning for Intraday Scalping")
+            # Feature 40
+            f40 = st.checkbox("40. Predictions w/ Confidence Intervals")
+
+        with st.expander("5.5 Execution & Risk Enhancements"):
+            # Feature 41
+            f41 = st.checkbox("41. Smart Order Routing (Zerodha, Upstox, etc.)")
+            # Feature 42
+            f42 = st.checkbox("42. Paper Trading vs Live Trading Toggle")
+            # Feature 43
+            f43 = st.checkbox("43. Whipsaw Protection (2-step Confirmation)")
+            # Feature 44
+            f44 = st.checkbox("44. Adaptive Trailing Stop (ATR-based, volatility-based)")
+            # Feature 45
+            f45 = st.checkbox("45. Real-time VaR & ES (Expected Shortfall)")
+            # Feature 46
+            f46 = st.checkbox("46. Dynamic Rebalancing for Portfolio")
+            # Feature 47
+            f47 = st.checkbox("47. Multi-asset Arbitrage (Forex, Commodities vs Equity)")
+            # Feature 48
+            f48 = st.checkbox("48. Telegram/Slack/WhatsApp Alerts Integration")
+            # Feature 49
+            f49 = st.checkbox("49. Scheduled Batch Jobs (EOD, Weekly) for ML Re-train")
+            # Feature 50
+            f50 = st.checkbox("50. Comprehensive Data Quality Checks (Missing, Outliers)")
+
+    # ===== SIDEBAR: MARKET SYMBOL & DATE RANGE ===== #
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Market Params")
+    symbol = st.sidebar.text_input("Symbol:", "RELIANCE.NS")
+    start_date = st.sidebar.date_input("Start Date:", datetime(2022, 1, 1))
+    end_date = st.sidebar.date_input("End Date:", datetime.now())
+
+    # ===== MAIN CONTENT TABS ===== #
+    st.title("AI Trading Platform - Best in Class")
+
+    # Initialize services
+    realtime_service = RealTimeDataService()
+    exchange_service = ExchangeService()
+
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📊 Market Analysis",
+        "💹 Advanced Trading",
+        "📈 Trading View",
+        "📚 Learning Center"
+    ])
+
+    # ========== TAB 1: Market Analysis ========== #
+    with tab1:
+        st.header("Market Analysis Overview")
+        df_data = realtime_service.generate_mock_data(symbol, 100)
+
+        # Price change metrics
+        current_price = df_data['close'].iloc[-1]
+        prev_price = df_data['close'].iloc[-2]
+        price_change_pct = (current_price - prev_price) / prev_price * 100
+
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric(symbol.upper(), f"{current_price:.2f}", f"{price_change_pct:.2f}%")
+        with col2:
+            current_vol = df_data['volume'].iloc[-1]
+            prev_vol = df_data['volume'].iloc[-2]
+            vol_change_pct = (current_vol - prev_vol) / prev_vol * 100
+            st.metric("Volume", f"{current_vol:,.0f}", f"{vol_change_pct:.2f}%")
+        with col3:
+            st.metric("Market Status", "Active", "Online")
+        with col4:
+            st.metric("Last Updated", datetime.now().strftime("%I:%M %p"), "Real-time")
+
+        st.markdown("### Price Chart")
+        st.line_chart(df_data.set_index("date")['close'], use_container_width=True)
+
+        # Performance & Trade Logs
+        display_performance_metrics()
+        display_trade_logs()
+
+        st.markdown("#### Monte Carlo Simulations")
+        if st.button("Run Monte Carlo Simulation"):
+            st.info("Running Monte Carlo... (Mock)")
+
+    # ========== TAB 2: Advanced Trading ========== #
+    with tab2:
+        st.header("Advanced Trading Tools")
+        st.markdown("Leverage advanced analytics, execution strategies, or custom ML models here.")
+        st.markdown("### Model Information")
+        st.info("Placeholder for your ML/Model summary, advanced triggers, or real-time signals.")
+        st.write("---")
+
+        st.markdown("#### Additional Advanced Tools from the 50-Features Suite")
+        st.write("Any features you checked in the sidebar can be shown or processed here. (Mock)")
+
+    # ========== TAB 3: Trading View ========== #
+    with tab3:
+        st.header("Live Trading View")
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.markdown("#### Market Chart")
+            st.line_chart(df_data.set_index("date")['close'], use_container_width=True)
+
+        with col2:
+            st.markdown("#### Trading Controls")
+            amount = st.number_input("Amount", min_value=0.0, value=10000.0, step=1000.0)
+            price = st.number_input("Price", min_value=0.0, value=float(current_price), step=0.1)
+
+            buy_col, sell_col = st.columns(2)
+            with buy_col:
+                if st.button("Buy"):
+                    st.success("Buy order executed. (Mock)")
+            with sell_col:
+                if st.button("Sell"):
+                    st.warning("Sell order executed. (Mock)")
+
+    # ========== TAB 4: Learning Center ========== #
+    with tab4:
+        st.header("Learning Center")
+        st.write("Explore educational content, tutorials, or resources here.")
+        st.info("Add your external educational resources, docs, or interactive tutorials.")
+
+    st.markdown("---")
+
+    # ===== BOTTOM ACTION BUTTONS ===== #
+    bot_col1, bot_col2 = st.columns([1, 1])
+    with bot_col1:
+        if st.button("Run Backtest"):
+            run_backtest()
+    with bot_col2:
+        if st.button("Reset All"):
+            st.warning("All settings reset. (Mock) - Reload app to re-initialize.")
+
+# ===== RUN APP ===== #
+if __name__ == "__main__":
+    main()

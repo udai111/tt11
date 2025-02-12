@@ -1,0 +1,555 @@
+import React, { useState, useEffect } from "react";
+import styled from "styled-components";
+
+/* ----------------------------------------
+   MOCK DATA
+----------------------------------------- */
+const MOCK_STOCKS = [
+  { symbol: "RELIANCE", price: 2300 },
+  { symbol: "TCS", price: 3100 },
+  { symbol: "INFY", price: 1500 },
+  { symbol: "HDFCBANK", price: 1600 },
+  { symbol: "AXISBANK", price: 900 },
+  { symbol: "ITC", price: 330 },
+];
+
+/* 
+  HELPER: random price fluctuation 
+  Just a naive function to show stocks changing 
+*/
+function getRandomFluctuation(basePrice) {
+  const changePercent = (Math.random() - 0.5) * 0.02; // ±1% random daily movement
+  return Math.max(1, basePrice * (1 + changePercent));
+}
+
+/* ----------------------------------------
+   MAIN APP
+----------------------------------------- */
+function DummyStockExchangeApp() {
+  /* 
+    1. APP STATE:
+       - user: store user details, wallet, portfolio
+       - currentStockPrices: store stock data with real-time updates
+       - isLoggedIn: checks if user is logged in
+  */
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [currentStockPrices, setCurrentStockPrices] = useState(MOCK_STOCKS);
+
+  // On first load, try to restore user from localStorage
+  useEffect(() => {
+    const savedUser = localStorage.getItem("dummyExchangeUser");
+    if (savedUser) {
+      const parsedUser = JSON.parse(savedUser);
+      setCurrentUser(parsedUser);
+      setIsLoggedIn(true);
+    }
+  }, []);
+
+  // Periodically update stock prices (e.g. every 5 seconds)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentStockPrices((prev) =>
+        prev.map((s) => ({
+          ...s,
+          price: parseFloat(getRandomFluctuation(s.price).toFixed(2)),
+        }))
+      );
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Sync currentUser changes to localStorage
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem("dummyExchangeUser", JSON.stringify(currentUser));
+    }
+  }, [currentUser]);
+
+  // HANDLERS
+  const handleLogin = (user) => {
+    setCurrentUser(user);
+    setIsLoggedIn(true);
+  };
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setCurrentUser(null);
+    localStorage.removeItem("dummyExchangeUser");
+  };
+
+  // RENDER
+  return (
+    <AppContainer>
+      <Header>
+        <h1>Dummy Stock Exchange</h1>
+        {isLoggedIn && (
+          <button onClick={handleLogout}>Logout</button>
+        )}
+      </Header>
+
+      {/* If not logged in, show the AuthPanel, otherwise show the Exchange */}
+      {!isLoggedIn ? (
+        <AuthPanel onLogin={handleLogin} />
+      ) : (
+        <Exchange
+          user={currentUser}
+          setUser={setCurrentUser}
+          stockPrices={currentStockPrices}
+        />
+      )}
+    </AppContainer>
+  );
+}
+
+export default DummyStockExchangeApp;
+
+/* 
+  ========== AuthPanel ==========
+  Let user login or register a new account. 
+  For demonstration, we store it in local state only.
+*/
+function AuthPanel({ onLogin }) {
+  const [view, setView] = useState("login"); // "login" or "register"
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  // In real usage, you'd call a backend. Here, just store in local variable.
+
+  // For mock "database" of users, we store them in localStorage
+  const getStoredUsers = () => {
+    const data = localStorage.getItem("dummyExchangeUsers");
+    return data ? JSON.parse(data) : {};
+  };
+  const setStoredUsers = (obj) => {
+    localStorage.setItem("dummyExchangeUsers", JSON.stringify(obj));
+  };
+
+  const handleLoginSubmit = () => {
+    const allUsers = getStoredUsers();
+    if (
+      allUsers[username] &&
+      allUsers[username].password === password
+    ) {
+      const userData = {
+        username,
+        wallet: allUsers[username].wallet,
+        portfolio: allUsers[username].portfolio,
+      };
+      onLogin(userData);
+    } else {
+      alert("Invalid credentials or user not found");
+    }
+  };
+
+  const handleRegisterSubmit = () => {
+    const allUsers = getStoredUsers();
+    if (allUsers[username]) {
+      alert("User already exists. Please choose a different username.");
+      return;
+    }
+    // Create new user with dummy wallet of 100k, empty portfolio
+    allUsers[username] = {
+      password,
+      wallet: 100000,
+      portfolio: {}, // e.g. { "RELIANCE": { quantity:10, avgCost: 2100 } }
+    };
+    setStoredUsers(allUsers);
+    alert("Registration successful. You can now login.");
+    setView("login");
+  };
+
+  return (
+    <AuthContainer>
+      <AuthCard>
+        <h2>{view === "login" ? "Login" : "Register"}</h2>
+        <label>Username</label>
+        <input
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+        />
+
+        <label>Password</label>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+
+        {view === "login" ? (
+          <>
+            <button onClick={handleLoginSubmit}>Login</button>
+            <p>
+              Don't have an account?{" "}
+              <span
+                className="link"
+                onClick={() => setView("register")}
+              >
+                Register
+              </span>
+            </p>
+          </>
+        ) : (
+          <>
+            <button onClick={handleRegisterSubmit}>Register</button>
+            <p>
+              Already have an account?{" "}
+              <span
+                className="link"
+                onClick={() => setView("login")}
+              >
+                Login
+              </span>
+            </p>
+          </>
+        )}
+      </AuthCard>
+    </AuthContainer>
+  );
+}
+
+/* 
+  ========== Exchange ==========
+  Shows:
+   1) Wallet
+   2) Portfolio
+   3) List of Stocks with current prices & buy/sell
+*/
+function Exchange({ user, setUser, stockPrices }) {
+  // Buy/Sell
+  const [selectedStock, setSelectedStock] = useState(null);
+  const [quantity, setQuantity] = useState("");
+
+  const handleBuy = (symbol, currentPrice) => {
+    // Validate
+    const qty = parseInt(quantity);
+    if (!qty || qty < 1) {
+      alert("Invalid quantity");
+      return;
+    }
+    const cost = qty * currentPrice;
+    if (user.wallet < cost) {
+      alert("Insufficient wallet balance");
+      return;
+    }
+
+    // Deduct from wallet
+    const newWallet = user.wallet - cost;
+
+    // Update portfolio
+    // e.g. portfolio[symbol] = { quantity, avgCost }
+    const prevHolding = user.portfolio[symbol] || { quantity: 0, avgCost: 0 };
+    const newQty = prevHolding.quantity + qty;
+    const newAvgCost = 
+      newQty === 0 
+      ? 0 
+      : (prevHolding.quantity * prevHolding.avgCost + cost) / newQty;
+
+    const newPortfolio = { ...user.portfolio };
+    newPortfolio[symbol] = {
+      quantity: newQty,
+      avgCost: newAvgCost,
+    };
+
+    // Save changes
+    setUser({
+      ...user,
+      wallet: newWallet,
+      portfolio: newPortfolio,
+    });
+    setQuantity("");
+    alert(`Bought ${qty} shares of ${symbol} at ₹${currentPrice} each.`);
+  };
+
+  const handleSell = (symbol, currentPrice) => {
+    // Validate
+    const qty = parseInt(quantity);
+    if (!qty || qty < 1) {
+      alert("Invalid quantity");
+      return;
+    }
+    const holding = user.portfolio[symbol];
+    if (!holding || holding.quantity < qty) {
+      alert("Not enough shares to sell");
+      return;
+    }
+
+    // Credit to wallet
+    const proceeds = qty * currentPrice;
+    const newWallet = user.wallet + proceeds;
+
+    // Update portfolio
+    const newQty = holding.quantity - qty;
+    let newPortfolio = { ...user.portfolio };
+    if (newQty <= 0) {
+      delete newPortfolio[symbol];
+    } else {
+      newPortfolio[symbol] = {
+        quantity: newQty,
+        avgCost: holding.avgCost,
+      };
+    }
+
+    // Save changes
+    setUser({
+      ...user,
+      wallet: newWallet,
+      portfolio: newPortfolio,
+    });
+    setQuantity("");
+    alert(`Sold ${qty} shares of ${symbol} at ₹${currentPrice} each.`);
+  };
+
+  return (
+    <ExchangeContainer>
+      <Sidebar>
+        <WalletSection>
+          <h3>Wallet</h3>
+          <p>Balance: ₹{user.wallet.toFixed(2)}</p>
+        </WalletSection>
+
+        <PortfolioSection>
+          <h3>Portfolio</h3>
+          {Object.keys(user.portfolio).length === 0 ? (
+            <p>No holdings yet</p>
+          ) : (
+            Object.entries(user.portfolio).map(([symbol, data]) => (
+              <HoldingCard key={symbol}>
+                <strong>{symbol}</strong>
+                <p>Qty: {data.quantity}</p>
+                <p>Avg Cost: ₹{data.avgCost.toFixed(2)}</p>
+              </HoldingCard>
+            ))
+          )}
+        </PortfolioSection>
+      </Sidebar>
+
+      <MainArea>
+        <h2>Live Market</h2>
+        <StockGrid>
+          {stockPrices.map((s, idx) => (
+            <StockItem key={idx} onClick={() => setSelectedStock(s.symbol)}>
+              <strong>{s.symbol}</strong>
+              <p>Price: ₹{s.price.toFixed(2)}</p>
+            </StockItem>
+          ))}
+        </StockGrid>
+
+        {selectedStock && (
+          <TradePanel>
+            <h3>Trade: {selectedStock}</h3>
+            <label>Quantity</label>
+            <input
+              type="number"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+            />
+            {/* find the current price from stockPrices */}
+            {stockPrices.map((st) => {
+              if (st.symbol === selectedStock) {
+                return (
+                  <TradeButtons key={st.symbol}>
+                    <button onClick={() => handleBuy(st.symbol, st.price)}>
+                      Buy
+                    </button>
+                    <button onClick={() => handleSell(st.symbol, st.price)}>
+                      Sell
+                    </button>
+                    <button onClick={() => setSelectedStock(null)}>
+                      Cancel
+                    </button>
+                  </TradeButtons>
+                );
+              }
+              return null;
+            })}
+          </TradePanel>
+        )}
+      </MainArea>
+    </ExchangeContainer>
+  );
+}
+
+/* ----------------------------------------
+   STYLED COMPONENTS
+----------------------------------------- */
+
+const AppContainer = styled.div`
+  background: #121212;
+  color: #ffffff;
+  min-height: 100vh;
+  font-family: "Arial", sans-serif;
+`;
+
+const Header = styled.div`
+  display: flex;
+  justify-content: space-between;
+  padding: 1rem;
+  background: #1e1e1e;
+
+  h1 {
+    margin: 0;
+    font-size: 1.4rem;
+  }
+
+  button {
+    background: #ff4d4d;
+    border: none;
+    border-radius: 4px;
+    color: #fff;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+`;
+
+/* ========== AuthPanel Styles ========== */
+const AuthContainer = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+`;
+
+const AuthCard = styled.div`
+  background: #1e1e1e;
+  padding: 2rem;
+  border-radius: 8px;
+  width: 300px;
+
+  h2 {
+    margin-bottom: 1rem;
+  }
+  label {
+    font-size: 0.9rem;
+  }
+  input {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 0.5rem;
+    border: none;
+    border-radius: 4px;
+  }
+  button {
+    background: #4caf50;
+    border: none;
+    border-radius: 4px;
+    color: #fff;
+    padding: 8px 12px;
+    cursor: pointer;
+    margin-bottom: 1rem;
+  }
+  p {
+    font-size: 0.8rem;
+  }
+  .link {
+    color: #4caf50;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+`;
+
+/* ========== Exchange Styles ========== */
+const ExchangeContainer = styled.div`
+  display: flex;
+  min-height: calc(100vh - 70px);
+`;
+
+const Sidebar = styled.div`
+  width: 250px;
+  background: #1e1e1e;
+  padding: 1rem;
+  box-shadow: 2px 0 6px rgba(0,0,0,0.3);
+`;
+
+const WalletSection = styled.div`
+  margin-bottom: 2rem;
+  h3 {
+    margin-top: 0;
+  }
+`;
+
+const PortfolioSection = styled.div`
+  h3 {
+    margin-top: 0;
+  }
+`;
+
+const HoldingCard = styled.div`
+  background: #2a2a2a;
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+  border-radius: 4px;
+
+  p {
+    margin: 2px 0;
+    font-size: 0.85rem;
+  }
+`;
+
+const MainArea = styled.div`
+  flex: 1;
+  padding: 1rem;
+`;
+
+const StockGrid = styled.div`
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+`;
+
+const StockItem = styled.div`
+  background: #2a2a2a;
+  padding: 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  min-width: 120px;
+
+  &:hover {
+    background: #3a3a3a;
+  }
+`;
+
+const TradePanel = styled.div`
+  margin-top: 1rem;
+  background: #2a2a2a;
+  padding: 1rem;
+  border-radius: 6px;
+  max-width: 300px;
+
+  label {
+    display: block;
+    margin-top: 0.5rem;
+  }
+  input {
+    width: 100%;
+    padding: 6px;
+    border-radius: 4px;
+    border: none;
+    margin-bottom: 1rem;
+    margin-top: 0.5rem;
+  }
+`;
+
+const TradeButtons = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  button {
+    background: #ff4d4d;
+    border: none;
+    border-radius: 4px;
+    color: #fff;
+    padding: 6px 10px;
+    cursor: pointer;
+
+    &:nth-child(1) {
+      background: #4caf50;
+    }
+    &:nth-child(2) {
+      background: #d32f2f;
+    }
+    &:hover {
+      opacity: 0.9;
+    }
+  }
+`;
+

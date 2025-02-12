@@ -1,0 +1,167 @@
+// MarketDashboard.js
+import React, { useEffect, useState } from "react";
+import RSSParser from "rss-parser";
+
+export default function MarketDashboard() {
+  const [gainers, setGainers] = useState([]);
+  const [losers, setLosers] = useState([]);
+  const [newsItems, setNewsItems] = useState([]);
+  const [watchlist, setWatchlist] = useState(["RELIANCE", "TCS"]);
+  const [watchData, setWatchData] = useState({});
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const respGainers = await fetch("/api/backend?type=gainers");
+        const dataGainers = await respGainers.json();
+        setGainers(dataGainers);
+      } catch {}
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const respLosers = await fetch("/api/backend?type=losers");
+        const dataLosers = await respLosers.json();
+        setLosers(dataLosers);
+      } catch {}
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const parser = new RSSParser();
+        const feed = await parser.parseURL("https://www.moneycontrol.com/rss/MCtopnews.xml");
+        setNewsItems(feed.items);
+      } catch {}
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const resp = await fetch("/api/backend?type=watchlist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ symbols: watchlist }),
+        });
+        const data = await resp.json();
+        setWatchData(data);
+      } catch {}
+    })();
+  }, [watchlist]);
+
+  const addSymbol = (symbol) => {
+    if (!watchlist.includes(symbol) && symbol.trim() !== "") {
+      setWatchlist([...watchlist, symbol.trim().toUpperCase()]);
+    }
+  };
+
+  return (
+    <div style={{ padding: 20, fontFamily: "Arial, sans-serif" }}>
+      <h1>Indian Market Dashboard</h1>
+
+      <div style={{ marginBottom: 30 }}>
+        <h2>TradingView Heatmap</h2>
+        <div className="tradingview-widget-container">
+          <div className="tradingview-widget-container__widget"></div>
+          <script
+            type="text/javascript"
+            src="https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js"
+            async
+          >
+            {JSON.stringify({
+              exchanges: ["NSE", "BSE"],
+              dataSource: "India",
+              blockColor: "change",
+              colorTheme: "dark",
+              width: "100%",
+              height: "400",
+            })}
+          </script>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 50 }}>
+        <div style={{ flex: 1 }}>
+          <h2>Top Gainers</h2>
+          {gainers.length === 0 ? (
+            <p>Loading gainers...</p>
+          ) : (
+            <ul>
+              {gainers.map((item, i) => (
+                <li key={i}>
+                  {item.symbol} - {item.change}%
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <h2>Top Losers</h2>
+          {losers.length === 0 ? (
+            <p>Loading losers...</p>
+          ) : (
+            <ul>
+              {losers.map((item, i) => (
+                <li key={i}>
+                  {item.symbol} - {item.change}%
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div style={{ flex: 1 }}>
+          <h2>Market News (MoneyControl)</h2>
+          {newsItems.length === 0 ? (
+            <p>Loading news...</p>
+          ) : (
+            <ul>
+              {newsItems.map((item, i) => (
+                <li key={i}>
+                  <a href={item.link} target="_blank" rel="noreferrer">
+                    {item.title}
+                  </a>{" "}
+                  - {item.pubDate}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div style={{ marginTop: 40 }}>
+        <h2>Watchlist</h2>
+        <div style={{ marginBottom: 10 }}>
+          <input
+            type="text"
+            placeholder="Add Symbol..."
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                addSymbol(e.target.value);
+                e.target.value = "";
+              }
+            }}
+            style={{ marginRight: 10 }}
+          />
+        </div>
+        <ul>
+          {watchlist.map((sym, idx) => (
+            <li key={idx}>
+              {sym} -{" "}
+              {watchData[sym] ? (
+                <>
+                  ₹{watchData[sym].price} ({watchData[sym].change}%)
+                </>
+              ) : (
+                "Loading..."
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}

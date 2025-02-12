@@ -1,0 +1,459 @@
+import React, { useEffect, useState } from "react";
+import styled, { createGlobalStyle } from "styled-components";
+import { motion } from "framer-motion";
+import axios from "axios";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  Cell,
+} from "recharts";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Link,
+  NavLink
+} from "react-router-dom";
+
+/* Global Style for consistent dark theme */
+const GlobalStyle = createGlobalStyle`
+  body {
+    margin: 0;
+    background-color: #121212;
+    color: #ffffff;
+    font-family: 'Arial', sans-serif;
+    overflow-x: hidden;
+  }
+  a {
+    text-decoration: none;
+    color: inherit;
+  }
+`;
+
+const App = () => {
+  return (
+    <Router>
+      <GlobalStyle />
+      <NavBar>
+        <NavBarInner>
+          <Logo>ProTrade X</Logo>
+          <NavLinks>
+            <StyledNavLink to="/" end>
+              Home
+            </StyledNavLink>
+            <StyledNavLink to="/sector-analysis">Sector Analysis</StyledNavLink>
+            <StyledNavLink to="/charts">Charts</StyledNavLink>
+          </NavLinks>
+        </NavBarInner>
+      </NavBar>
+
+      {/* Main content area */}
+      <ContentContainer>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/sector-analysis" element={<SectorAnalysis />} />
+          <Route path="/charts" element={<ChartsPage />} />
+        </Routes>
+      </ContentContainer>
+    </Router>
+  );
+};
+
+/* ------------------------------
+   1) HOME PAGE
+------------------------------ */
+const HomePage = () => {
+  const [greedMeterValue, setGreedMeterValue] = useState(50);
+
+  useEffect(() => {
+    // For demonstration, randomly vary greed/fear
+    const fakeInterval = setInterval(() => {
+      setGreedMeterValue(Math.floor(Math.random() * 101)); // 0 - 100
+    }, 5000);
+
+    return () => clearInterval(fakeInterval);
+  }, []);
+
+  return (
+    <DashboardContainer>
+      <Section>
+        <h1>Welcome to ProTrade X</h1>
+        <p>
+          A cutting-edge trading platform with advanced sector analysis, 
+          real-time charts, and interactive market sentiment indicators.
+        </p>
+      </Section>
+      <Section>
+        {/* Greet / Fear Meter */}
+        <GreedMeter>
+          <h3>Market Sentiment</h3>
+          <Gauge value={greedMeterValue}>
+            <span>{greedMeterValue}%</span>
+          </Gauge>
+          <p>
+            {greedMeterValue > 70
+              ? "Greed"
+              : greedMeterValue < 30
+              ? "Fear"
+              : "Neutral"}
+          </p>
+          <MeterExplanation>
+            This gauge represents the market's overall “Greed vs. Fear” index
+            based on volume spikes, volatility, and sentiment data. A high value
+            may indicate exuberance; a low value may suggest caution.
+          </MeterExplanation>
+        </GreedMeter>
+      </Section>
+    </DashboardContainer>
+  );
+};
+
+/* ------------------------------
+   2) SECTOR ANALYSIS PAGE
+------------------------------ */
+const SectorAnalysis = () => {
+  const [sectorData, setSectorData] = useState([]);
+  const [topPerformers, setTopPerformers] = useState({});
+
+  useEffect(() => {
+    // Fetch sector-wise data (mock API call)
+    const fetchData = async () => {
+      try {
+        // Replace with actual API
+        const response = await axios.get("/api/sector-performance");
+        setSectorData(response.data.sectors);
+        setTopPerformers(response.data.topPerformers);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        // Mock fallback
+        setSectorData([
+          { name: "IT", performance: 75 },
+          { name: "Banks", performance: 30 },
+          { name: "Energy", performance: 60 },
+          { name: "Pharma", performance: 45 },
+        ]);
+        setTopPerformers({
+          IT: [{ name: "INFY", change: 3.2 }, { name: "TCS", change: 2.1 }],
+          Banks: [{ name: "HDFCBANK", change: 1.8 }],
+          Energy: [{ name: "RELIANCE", change: 2.5 }],
+          Pharma: [{ name: "SUNPHARMA", change: 1.1 }],
+        });
+      }
+    };
+    fetchData();
+  }, []);
+
+  return (
+    <DashboardContainer>
+      {/* Sector Performance Heatmap */}
+      <Section>
+        <h2>Sector Performance</h2>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={sectorData} layout="vertical">
+            <XAxis type="number" domain={[0, 100]} />
+            <YAxis type="category" dataKey="name" />
+            <Tooltip />
+            <Legend />
+            <Bar dataKey="performance" fill="#ff4d4d">
+              {sectorData.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={getColor(entry.performance)}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </Section>
+
+      {/* Top Performers */}
+      <Section>
+        <h2>Top Performers by Sector</h2>
+        <TopPerformersList>
+          {Object.keys(topPerformers).map((sector) => (
+            <TopPerformerCard key={sector}>
+              <h3>{sector}</h3>
+              <ul>
+                {topPerformers[sector].map((stock, index) => (
+                  <li key={index}>
+                    {stock.name} (+{stock.change}%)
+                  </li>
+                ))}
+              </ul>
+            </TopPerformerCard>
+          ))}
+        </TopPerformersList>
+      </Section>
+    </DashboardContainer>
+  );
+};
+
+/* ------------------------------
+   3) CHARTS PAGE
+------------------------------ */
+const ChartsPage = () => {
+  return (
+    <DashboardContainer>
+      <Section>
+        <h2>Charts & Analysis</h2>
+        <p>
+          View real-time charts from both Angel One Pro and TradingView 
+          for deeper technical insights.
+        </p>
+      </Section>
+
+      <ChartsContainer>
+        {/* Angel One Chart (Placeholder iFrame) */}
+        <ChartBox>
+          <h3>Angel One Pro Chart</h3>
+          <iframe
+            title="AngelOneChart"
+            src="https://example.com/angel-one-pro-charts"
+            width="100%"
+            height="400"
+            style={{ border: 0, borderRadius: "6px" }}
+          />
+          <ChartExplanation>
+            Angel One Pro advanced charting – candlesticks, indicators, and 
+            real-time data.
+          </ChartExplanation>
+        </ChartBox>
+
+        {/* TradingView Heatmap */}
+        <ChartBox>
+          <h3>TradingView Heatmap</h3>
+          <TradingViewEmbed>
+            <div className="tradingview-widget-container">
+              <div className="tradingview-widget-container__widget"></div>
+              <div className="tradingview-widget-copyright">
+                <a
+                  href="https://www.tradingview.com/"
+                  rel="noopener nofollow"
+                  target="_blank"
+                >
+                  <span className="blue-text">
+                    Track all markets on TradingView
+                  </span>
+                </a>
+              </div>
+              <script
+                type="text/javascript"
+                src="https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js"
+                async
+              >
+                {JSON.stringify({
+                  exchanges: ["NSE", "BSE"],
+                  dataSource: "India",
+                  grouping: "sector",
+                  blockSize: "market_cap_basic",
+                  blockColor: "change",
+                  locale: "en",
+                  symbolUrl: "",
+                  colorTheme: "dark",
+                  hasTopBar: true,
+                  isDataSetEnabled: true,
+                  isZoomEnabled: true,
+                  hasSymbolTooltip: true,
+                  isMonoSize: false,
+                  width: "100%",
+                  height: "400",
+                })}
+              </script>
+            </div>
+          </TradingViewEmbed>
+          <ChartExplanation>
+            TradingView heatmap to quickly identify gainers and laggards.
+          </ChartExplanation>
+        </ChartBox>
+      </ChartsContainer>
+    </DashboardContainer>
+  );
+};
+
+/* -------------------------------------------------
+   HELPER: color scale for sector performance
+---------------------------------------------------*/
+const getColor = (performance) => {
+  if (performance > 70) return "#4caf50"; // Green
+  if (performance > 40) return "#ffeb3b"; // Yellow
+  return "#f44336"; // Red
+};
+
+/* =========================
+   STYLED COMPONENTS
+========================= */
+
+const NavBar = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  background-color: #1e1e1e;
+  z-index: 9999;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
+`;
+
+const NavBarInner = styled.div`
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  height: 60px;
+  padding: 0 1rem;
+  justify-content: space-between;
+`;
+
+const Logo = styled.div`
+  font-size: 1.4rem;
+  font-weight: bold;
+  color: #ff4d4d;
+`;
+
+const NavLinks = styled.div`
+  display: flex;
+  gap: 1rem;
+`;
+
+const StyledNavLink = styled(NavLink)`
+  color: #ffffff;
+  font-size: 1rem;
+  text-decoration: none;
+  padding: 8px 0;
+  &.active {
+    color: #ff4d4d;
+    font-weight: bold;
+  }
+  &:hover {
+    color: #ff4d4d;
+  }
+`;
+
+const ContentContainer = styled.div`
+  margin-top: 60px; /* offset navbar */
+  padding: 20px;
+  min-height: calc(100vh - 60px);
+`;
+
+const DashboardContainer = styled.div`
+  padding: 20px;
+  background-color: #121212;
+  color: #ffffff;
+`;
+
+const Section = styled.div`
+  margin-bottom: 40px;
+
+  h1,
+  h2 {
+    margin-bottom: 10px;
+  }
+`;
+
+const GreedMeter = styled.div`
+  text-align: center;
+`;
+
+const Gauge = styled.div`
+  position: relative;
+  width: 180px;
+  height: 180px;
+  margin: 20px auto;
+  border-radius: 50%;
+  background: conic-gradient(
+    #4caf50 ${(props) => props.value}%, 
+    #f44336 ${(props) => props.value}%
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 1.2rem;
+  font-weight: bold;
+
+  span {
+    z-index: 1;
+  }
+`;
+
+const MeterExplanation = styled.div`
+  font-size: 0.85rem;
+  max-width: 400px;
+  margin: 0.5rem auto;
+  opacity: 0.7;
+  line-height: 1.4;
+`;
+
+const TopPerformersList = styled.div`
+  display: flex;
+  gap: 20px;
+  overflow-x: auto;
+`;
+
+const TopPerformerCard = styled.div`
+  background: #1e1e1e;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  min-width: 250px;
+
+  h3 {
+    margin-bottom: 10px;
+    font-size: 1.2rem;
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+  }
+
+  li {
+    margin-bottom: 5px;
+    font-size: 1rem;
+  }
+`;
+
+/* Charts page styling */
+const ChartsContainer = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+`;
+
+const ChartBox = styled.div`
+  flex: 1 1 450px;
+  background: #1e1e1e;
+  padding: 20px;
+  border-radius: 6px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+
+  h3 {
+    margin-bottom: 10px;
+  }
+`;
+
+const TradingViewEmbed = styled.div`
+  width: 100%;
+  height: 400px;
+  position: relative;
+  .tradingview-widget-container {
+    width: 100%;
+    height: 100%;
+  }
+  .tradingview-widget-container__widget {
+    width: 100%;
+    height: 100%;
+  }
+`;
+
+const ChartExplanation = styled.p`
+  font-size: 0.85rem;
+  margin-top: 10px;
+  opacity: 0.7;
+`;
+
+export default App;

@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Backtesting Platform</title>
+  
+  <!-- Bootstrap CSS -->
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+  />
+  
+  <!-- Optional: Font Awesome for icons -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+  />
+
+  <style>
+    body {
+      padding: 20px;
+    }
+    .section-title {
+      margin-bottom: 10px;
+      margin-top: 20px;
+      font-weight: bold;
+      font-size: 1.25rem;
+    }
+    .accordion-button::after {
+      background-image: none !important;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1 class="my-4 text-center">Backtesting Platform UI</h1>
+    
+    <!-- 
+      Accordion-based layout to organize all feature categories.
+      Each accordion item corresponds to one major category from your list.
+    -->
+    <div class="accordion" id="backtestAccordion">
+
+      <!-- 1. Historical Data Integration -->
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="headingOne">
+          <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
+            1. Historical Data Integration
+          </button>
+        </h2>
+        <div id="collapseOne" class="accordion-collapse collapse show" aria-labelledby="headingOne" data-bs-parent="#backtestAccordion">
+          <div class="accordion-body">
+            
+            <!-- Granular Data -->
+            <div class="section-title">Granular Data</div>
+            <div class="mb-3">
+              <label for="dataSource" class="form-label">Data Source URL / File:</label>
+              <input type="text" class="form-control" id="dataSource" placeholder="Enter data source or file path" />
+            </div>
+            <button class="btn btn-sm btn-primary" onclick="uploadData()">Upload Data</button>
+
+            <!-- Multiple Timeframes -->
+            <div class="section-title">Multiple Timeframes</div>
+            <div class="mb-3">
+              <label for="timeframeSelect" class="form-label">Choose Timeframe:</label>
+              <select class="form-select" id="timeframeSelect">
+                <option value="1m">1 Minute</option>
+                <option value="1h">1 Hour</option>
+                <option value="1d">Daily</option>
+                <option value="1w">Weekly</option>
+              </select>
+            </div>
+
+            <!-- Dividends, Splits, and Corporate Actions -->
+            <div class="section-title">Dividends, Splits & Corporate Actions</div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" value="" id="adjustForSplits" checked />
+              <label class="form-check-label" for="adjustForSplits">
+                Adjust for Splits
+              </label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" value="" id="adjustForDividends" checked />
+              <label class="form-check-label" for="adjustForDividends">
+                Adjust for Dividends
+              </label>
+            </div>
+
+            <!-- Global Markets -->
+            <div class="section-title">Global Markets</div>
+            <p>
+              <small>Select which markets/assets to include (e.g., stocks, ETFs, futures, forex, crypto).</small>
+            </p>
+            <div class="row g-2">
+              <div class="col">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" value="stocks" id="chkStocks" checked/>
+                  <label class="form-check-label" for="chkStocks">Stocks</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" value="etfs" id="chkETFs" />
+                  <label class="form-check-label" for="chkETFs">ETFs</label>
+                </div>
+              </div>
+              <div class="col">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" value="futures" id="chkFutures" />
+                  <label class="form-check-label" for="chkFutures">Futures</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" value="crypto" id="chkCrypto" />
+                  <label class="form-check-label" for="chkCrypto">Cryptocurrencies</label>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+      </div>
+      <!-- /1. Historical Data Integration -->
+
+      <!-- 2. Strategy Customization -->
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="headingTwo">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
+            2. Strategy Customization
+          </button>
+        </h2>
+        <div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#backtestAccordion">
+          <div class="accordion-body">
+
+            <!-- Custom Indicators -->
+            <div class="section-title">Custom Indicators</div>
+            <p><small>Define parameters for your custom indicators here (e.g., RSI length, moving average periods, etc.).</small></p>
+            <div class="mb-3">
+              <label for="indicatorScript" class="form-label">Indicator Script/Logic:</label>
+              <textarea class="form-control" id="indicatorScript" rows="3" placeholder="function customIndicator(data) { ... }"></textarea>
+            </div>
+
+            <!-- Rule-Based Logic -->
+            <div class="section-title">Rule-Based Logic</div>
+            <p><small>Set up entry/exit rules, e.g., “Buy when price crosses above MA.”</small></p>
+            <div class="row g-2 mb-3">
+              <div class="col">
+                <label for="entryRule" class="form-label">Entry Rule:</label>
+                <input type="text" class="form-control" id="entryRule" placeholder="e.g. price > SMA(50)" />
+              </div>
+              <div class="col">
+                <label for="exitRule" class="form-label">Exit Rule:</label>
+                <input type="text" class="form-control" id="exitRule" placeholder="e.g. price < SMA(50)" />
+              </div>
+            </div>
+
+            <!-- Portfolio-Level Testing -->
+            <div class="section-title">Portfolio-Level Testing</div>
+            <p><small>Select multiple assets to test your strategy on, track combined performance, etc.</small></p>
+            <div class="mb-3">
+              <label for="portfolioAssets" class="form-label">Portfolio Assets:</label>
+              <input type="text" class="form-control" id="portfolioAssets" placeholder="AAPL, TSLA, BTC-USD" />
+            </div>
+
+            <!-- Event-Driven Testing -->
+            <div class="section-title">Event-Driven Testing</div>
+            <p><small>Triggers based on news, earnings, economic reports, etc.</small></p>
+            <div class="row g-2 mb-3">
+              <div class="col">
+                <label for="eventSource" class="form-label">Event Source URL / Data:</label>
+                <input type="text" class="form-control" id="eventSource" placeholder="https://example.com/earnings-calendar" />
+              </div>
+              <div class="col">
+                <label for="eventFilter" class="form-label">Filter (Keywords):</label>
+                <input type="text" class="form-control" id="eventFilter" placeholder="e.g. 'Earnings' or 'GDP'" />
+              </div>
+            </div>
+
+            <button class="btn btn-sm btn-primary" onclick="applyStrategy()">Apply Strategy</button>
+            
+          </div>
+        </div>
+      </div>
+      <!-- /2. Strategy Customization -->
+
+      <!-- 3. Performance Metrics -->
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="headingThree">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
+            3. Performance Metrics
+          </button>
+        </h2>
+        <div id="collapseThree" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#backtestAccordion">
+          <div class="accordion-body">
+
+            <div class="section-title">Returns Analysis</div>
+            <div class="mb-2">
+              <strong>Total Return:</strong> <span id="totalReturn">--</span>
+            </div>
+            <div class="mb-2">
+              <strong>Annualized Return:</strong> <span id="annualReturn">--</span>
+            </div>
+            <div class="mb-2">
+              <strong>Sharpe Ratio:</strong> <span id="sharpeRatio">--</span>
+            </div>
+            <div class="mb-2">
+              <strong>Sortino Ratio:</strong> <span id="sortinoRatio">--</span>
+            </div>
+
+            <div class="section-title">Drawdown Analysis</div>
+            <div class="mb-2">
+              <strong>Max Drawdown:</strong> <span id="maxDrawdown">--</span>
+            </div>
+            <div class="mb-2">
+              <strong>Recovery Period:</strong> <span id="recoveryPeriod">--</span>
+            </div>
+
+            <div class="section-title">Trade Statistics</div>
+            <div class="mb-2">
+              <strong>Win Rate:</strong> <span id="winRate">--</span>
+            </div>
+            <div class="mb-2">
+              <strong>Average Holding Period:</strong> <span id="avgHolding">--</span>
+            </div>
+            <div class="mb-2">
+              <strong>Number of Trades:</strong> <span id="numTrades">--</span>
+            </div>
+
+            <div class="section-title">Benchmark Comparison</div>
+            <div class="row g-2">
+              <div class="col">
+                <label for="benchmarkSelect" class="form-label">Benchmark:</label>
+                <select class="form-select" id="benchmarkSelect">
+                  <option value="SP500">S&P 500</option>
+                  <option value="NASDAQ">NASDAQ</option>
+                  <option value="DJIA">Dow Jones</option>
+                </select>
+              </div>
+              <div class="col d-flex align-items-end">
+                <button class="btn btn-sm btn-primary" onclick="compareBenchmark()">Compare</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+      <!-- /3. Performance Metrics -->
+
+      <!-- 4. Risk Management -->
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="headingFour">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFour" aria-expanded="false" aria-controls="collapseFour">
+            4. Risk Management
+          </button>
+        </h2>
+        <div id="collapseFour" class="accordion-collapse collapse" aria-labelledby="headingFour" data-bs-parent="#backtestAccordion">
+          <div class="accordion-body">
+
+            <!-- Position Sizing -->
+            <div class="section-title">Position Sizing</div>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="radio" name="positionSizing" id="fixedAmount" checked>
+              <label class="form-check-label" for="fixedAmount">Fixed Dollar Amount</label>
+            </div>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="radio" name="positionSizing" id="percentageOfCapital">
+              <label class="form-check-label" for="percentageOfCapital">Percentage of Capital</label>
+            </div>
+
+            <!-- Stop-Loss and Take-Profit -->
+            <div class="section-title">Stop-Loss & Take-Profit</div>
+            <div class="row g-2 mb-3">
+              <div class="col">
+                <label for="stopLossInput" class="form-label">Stop-Loss (%)</label>
+                <input type="number" class="form-control" id="stopLossInput" placeholder="e.g. 5" />
+              </div>
+              <div class="col">
+                <label for="takeProfitInput" class="form-label">Take-Profit (%)</label>
+                <input type="number" class="form-control" id="takeProfitInput" placeholder="e.g. 10" />
+              </div>
+            </div>
+
+            <!-- Leverage and Margin -->
+            <div class="section-title">Leverage & Margin</div>
+            <div class="mb-3">
+              <label for="leverageInput" class="form-label">Leverage (e.g. 2x, 5x):</label>
+              <input type="text" class="form-control" id="leverageInput" placeholder="2x" />
+            </div>
+
+            <!-- Volatility Scaling -->
+            <div class="section-title">Volatility Scaling</div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" value="" id="useATRScaling" />
+              <label class="form-check-label" for="useATRScaling">
+                Use ATR-based sizing
+              </label>
+            </div>
+
+          </div>
+        </div>
+      </div>
+      <!-- /4. Risk Management -->
+
+      <!-- 5. Execution Simulation -->
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="headingFive">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFive" aria-expanded="false" aria-controls="collapseFive">
+            5. Execution Simulation
+          </button>
+        </h2>
+        <div id="collapseFive" class="accordion-collapse collapse" aria-labelledby="headingFive" data-bs-parent="#backtestAccordion">
+          <div class="accordion-body">
+
+            <!-- Slippage and Commissions -->
+            <div class="section-title">Slippage & Commissions</div>
+            <div class="row g-2 mb-3">
+              <div class="col">
+                <label for="slippageInput" class="form-label">Slippage (cents/share or %):</label>
+                <input type="number" class="form-control" id="slippageInput" placeholder="0.01" />
+              </div>
+              <div class="col">
+                <label for="commissionInput" class="form-label">Commission ($ per trade):</label>
+                <input type="number" class="form-control" id="commissionInput" placeholder="5" />
+              </div>
+            </div>
+
+            <!-- Order Types -->
+            <div class="section-title">Order Types</div>
+            <div class="mb-3">
+              <select class="form-select" id="orderTypeSelect">
+                <option value="market">Market Order</option>
+                <option value="limit">Limit Order</option>
+                <option value="stopLimit">Stop-Limit Order</option>
+              </select>
+            </div>
+
+            <!-- Latency Simulation -->
+            <div class="section-title">Latency Simulation</div>
+            <div class="mb-3">
+              <label for="latencyInput" class="form-label">Latency (ms):</label>
+              <input type="number" class="form-control" id="latencyInput" placeholder="100" />
+            </div>
+
+          </div>
+        </div>
+      </div>
+      <!-- /5. Execution Simulation -->
+
+      <!-- 6. Visualization Tools -->
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="headingSix">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSix" aria-expanded="false" aria-controls="collapseSix">
+            6. Visualization Tools
+          </button>
+        </h2>
+        <div id="collapseSix" class="accordion-collapse collapse" aria-labelledby="headingSix" data-bs-parent="#backtestAccordion">
+          <div class="accordion-body">
+
+            <!-- Equity Curve -->
+            <div class="section-title">Equity Curve</div>
+            <canvas id="equityCurveChart" style="width:100%; height: 300px; background: #f8f9fa; border: 1px solid #ccc;"></canvas>
+
+            <!-- Heatmaps -->
+            <div class="section-title">Heatmaps</div>
+            <p><small>A placeholder for a heatmap showing performance across different assets or timeframes.</small></p>
+            <div id="heatmap" style="width:100%; height:200px; background: #efefef; border: 1px solid #ccc; display:flex; justify-content:center; align-items:center;">
+              <span>Heatmap Placeholder</span>
+            </div>
+
+            <!-- Trade Logs -->
+            <div class="section-title">Trade Logs</div>
+            <table class="table table-bordered">
+              <thead>
+                <tr>
+                  <th>Trade #</th>
+                  <th>Symbol</th>
+                  <th>Entry Price</th>
+                  <th>Exit Price</th>
+                  <th>P/L</th>
+                  <th>Holding Period</th>
+                </tr>
+              </thead>
+              <tbody id="tradeLogBody">
+                <!-- Rows appended dynamically -->
+              </tbody>
+            </table>
+
+            <!-- Monte Carlo Simulations -->
+            <div class="section-title">Monte Carlo Simulations</div>
+            <button class="btn btn-sm btn-secondary mb-3" onclick="runMonteCarlo()">Run Monte Carlo</button>
+            <div id="monteCarloResult" style="min-height: 100px; background: #fafafa; border: 1px dashed #ccc; padding: 10px;">
+              <small>Monte Carlo results/visuals will appear here.</small>
+            </div>
+
+          </div>
+        </div>
+      </div>
+      <!-- /6. Visualization Tools -->
+
+      <!-- 7. Machine Learning and AI Integration -->
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="headingSeven">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSeven" aria-expanded="false" aria-controls="collapseSeven">
+            7. Machine Learning & AI Integration
+          </button>
+        </h2>
+        <div id="collapseSeven" class="accordion-collapse collapse" aria-labelledby="headingSeven" data-bs-parent="#backtestAccordion">
+          <div class="accordion-body">
+
+            <!-- Pattern Recognition -->
+            <div class="section-title">Pattern Recognition</div>
+            <p><small>Upload or define your ML model that identifies recurring patterns in price/volume data.</small></p>
+            <div class="mb-3">
+              <label for="modelUpload" class="form-label">Model Upload (e.g., .pkl, .h5):</label>
+              <input type="file" class="form-control" id="modelUpload" />
+            </div>
+
+            <!-- Predictive Modeling -->
+            <div class="section-title">Predictive Modeling</div>
+            <p><small>Use your model to forecast future price movements.</small></p>
+            <button class="btn btn-sm btn-info mb-3" onclick="runPrediction()">Run Prediction</button>
+            <div id="predictionOutput" style="min-height: 50px; background: #f8f9fa; border: 1px solid #ccc; padding: 10px;">
+              <small>Prediction results will appear here.</small>
+            </div>
+
+            <!-- Optimization Algorithms -->
+            <div class="section-title">Optimization Algorithms</div>
+            <p><small>Use genetic algorithms or Bayesian optimization to tune strategy parameters.</small></p>
+            <div class="row g-2 mb-3">
+              <div class="col">
+                <button class="btn btn-sm btn-warning" onclick="runGAOptimization()">Run Genetic Algo</button>
+              </div>
+              <div class="col">
+                <button class="btn btn-sm btn-warning" onclick="runBayesianOptimization()">Run Bayesian Opt</button>
+              </div>
+            </div>
+            <div id="optimizationResults" style="min-height: 100px; background: #fefefe; border: 1px solid #ccc; padding: 10px;">
+              <small>Optimization results will appear here.</small>
+            </div>
+
+          </div>
+        </div>
+      </div>
+      <!-- /7. Machine Learning and AI Integration -->
+
+    </div> <!-- /accordion -->
+
+    <!-- Action Buttons -->
+    <div class="my-4 text-center">
+      <button class="btn btn-success" onclick="runBacktest()">Run Backtest</button>
+      <button class="btn btn-danger" onclick="resetForm()">Reset</button>
+    </div>
+    
+  </div> <!-- /container -->
+
+  <!-- Bootstrap JS + Popper.js -->
+  <script
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
+  ></script>
+
+  <!-- Optional: Chart.js for the Equity Curve -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.umd.min.js"></script>
+
+  <!-- Main Script -->
+  <script>
+    // Initialize the equity curve chart
+    const ctx = document.getElementById('equityCurveChart').getContext('2d');
+    const equityCurveChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [], // time or trade index
+        datasets: [{
+          label: 'Equity Curve',
+          data: [],
+          borderColor: 'rgba(75, 192, 192, 1)',
+          fill: false
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            display: true,
+            title: { display: true, text: 'Time/Trade Index' }
+          },
+          y: {
+            display: true,
+            title: { display: true, text: 'Equity Value' }
+          }
+        }
+      }
+    });
+
+    // Mock functions to illustrate the flow.
+    function uploadData() {
+      alert('Data upload initiated. Connect this to your backend.');
+    }
+
+    function applyStrategy() {
+      alert('Strategy applied. Connect to your backend logic.');
+    }
+
+    function compareBenchmark() {
+      // Example: update some metric
+      document.getElementById('totalReturn').textContent = '12% vs Benchmark 10%';
+    }
+
+    function runBacktest() {
+      alert('Running backtest... Hook this up to your backend.');
+      // Example: update chart with mock data
+      const mockData = [10000, 10200, 9800, 10500, 11000];
+      const mockLabels = ['Start', 'Trade 1', 'Trade 2', 'Trade 3', 'End'];
+
+      equityCurveChart.data.labels = mockLabels;
+      equityCurveChart.data.datasets[0].data = mockData;
+      equityCurveChart.update();
+
+      // Update some metrics
+      document.getElementById('totalReturn').textContent = '10%';
+      document.getElementById('annualReturn').textContent = '8%';
+      document.getElementById('sharpeRatio').textContent = '1.2';
+      document.getElementById('sortinoRatio').textContent = '1.5';
+      document.getElementById('maxDrawdown').textContent = '5%';
+      document.getElementById('recoveryPeriod').textContent = '2 weeks';
+      document.getElementById('winRate').textContent = '60%';
+      document.getElementById('avgHolding').textContent = '3 days';
+      document.getElementById('numTrades').textContent = '10';
+
+      // Mock trade log
+      const tradeLogBody = document.getElementById('tradeLogBody');
+      tradeLogBody.innerHTML = `
+        <tr><td>1</td><td>AAPL</td><td>150</td><td>155</td><td>+5</td><td>2 days</td></tr>
+        <tr><td>2</td><td>TSLA</td><td>700</td><td>690</td><td>-10</td><td>1 day</td></tr>
+      `;
+    }
+
+    function resetForm() {
+      // Reset all fields / placeholders
+      document.getElementById('dataSource').value = '';
+      document.getElementById('indicatorScript').value = '';
+      document.getElementById('entryRule').value = '';
+      document.getElementById('exitRule').value = '';
+      document.getElementById('portfolioAssets').value = '';
+      document.getElementById('eventSource').value = '';
+      document.getElementById('eventFilter').value = '';
+      document.getElementById('totalReturn').textContent = '--';
+      document.getElementById('annualReturn').textContent = '--';
+      document.getElementById('sharpeRatio').textContent = '--';
+      document.getElementById('sortinoRatio').textContent = '--';
+      document.getElementById('maxDrawdown').textContent = '--';
+      document.getElementById('recoveryPeriod').textContent = '--';
+      document.getElementById('winRate').textContent = '--';
+      document.getElementById('avgHolding').textContent = '--';
+      document.getElementById('numTrades').textContent = '--';
+      document.getElementById('tradeLogBody').innerHTML = '';
+      equityCurveChart.data.labels = [];
+      equityCurveChart.data.datasets[0].data = [];
+      equityCurveChart.update();
+      alert('Form reset.');
+    }
+
+    function runMonteCarlo() {
+      document.getElementById('monteCarloResult').textContent = 'Running Monte Carlo simulation...';
+      // Connect to your backend Monte Carlo logic, then update UI
+    }
+
+    function runPrediction() {
+      document.getElementById('predictionOutput').textContent = 'Running ML model predictions...';
+      // Connect to your backend or ML service
+    }
+
+    function runGAOptimization() {
+      document.getElementById('optimizationResults').textContent = 'Genetic Algorithm optimization in progress...';
+      // Connect to your GA logic
+    }
+
+    function runBayesianOptimization() {
+      document.getElementById('optimizationResults').textContent = 'Bayesian Optimization in progress...';
+      // Connect to your Bayesian optimization logic
+    }
+  </script>
+</body>
+</html>

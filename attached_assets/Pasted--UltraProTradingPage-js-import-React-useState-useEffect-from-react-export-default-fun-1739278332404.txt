@@ -1,0 +1,528 @@
+// UltraProTradingPage.js
+import React, { useState, useEffect } from "react";
+
+export default function UltraProTradingPage() {
+  const [symbol, setSymbol] = useState("RELIANCE");
+  const [orderType, setOrderType] = useState("Market");
+  const [side, setSide] = useState("Buy");
+  const [quantity, setQuantity] = useState("");
+  const [limitPrice, setLimitPrice] = useState("");
+  const [stopPrice, setStopPrice] = useState("");
+  const [marginEnabled, setMarginEnabled] = useState(false);
+  const [leverage, setLeverage] = useState(1);
+  const [positions, setPositions] = useState([]);
+  const [tradeLogs, setTradeLogs] = useState([]);
+  const [realTimePrice, setRealTimePrice] = useState(2300);
+  const [mockInterval, setMockInterval] = useState(null);
+  const [demoMode, setDemoMode] = useState(true);
+  const [trailingStop, setTrailingStop] = useState("");
+  const [alerts, setAlerts] = useState([]);
+  const [chartInterval, setChartInterval] = useState("15");
+  const [advancedIndicators, setAdvancedIndicators] = useState({
+    ma: false,
+    rsi: false,
+  });
+  const [watchers, setWatchers] = useState([]);
+  const [orderIceberg, setOrderIceberg] = useState(false);
+  const [orderOCO, setOrderOCO] = useState(false);
+  const [partialCloseQty, setPartialCloseQty] = useState("");
+  const [profitFactor, setProfitFactor] = useState(0);
+  const [netMarginUsage, setNetMarginUsage] = useState(0);
+  const [columnOrder, setColumnOrder] = useState([
+    "symbol",
+    "side",
+    "orderType",
+    "qty",
+    "entryPrice",
+    "margin",
+    "PnL",
+    "date",
+    "actions",
+  ]);
+
+  useEffect(() => {
+    if (mockInterval) clearInterval(mockInterval);
+    const interval = setInterval(() => {
+      setRealTimePrice((prev) => {
+        const change = (Math.random() - 0.5) * 5;
+        return parseFloat((prev + change).toFixed(2));
+      });
+    }, 3000);
+    setMockInterval(interval);
+    return () => clearInterval(interval);
+  }, [symbol]);
+
+  useEffect(() => {
+    let totalWins = 0;
+    let totalLosses = 0;
+    let winsCount = 0;
+    let lossesCount = 0;
+    positions.forEach((pos) => {
+      const pnl = (realTimePrice - pos.entryPrice) * pos.qty * (pos.side === "Buy" ? 1 : -1);
+      if (pnl > 0) {
+        totalWins += pnl;
+        winsCount += 1;
+      } else {
+        totalLosses += Math.abs(pnl);
+        lossesCount += 1;
+      }
+    });
+    if (totalLosses === 0) {
+      setProfitFactor(winsCount > 0 ? 9999 : 0);
+    } else {
+      setProfitFactor(parseFloat((totalWins / totalLosses).toFixed(2)));
+    }
+    let marginUse = 0;
+    positions.forEach((pos) => {
+      if (pos.margin) {
+        marginUse += pos.qty * pos.entryPrice * (1 / pos.leverage);
+      }
+    });
+    setNetMarginUsage(marginUse);
+  }, [positions, realTimePrice]);
+
+  const handleSubmitOrder = () => {
+    const qty = parseFloat(quantity);
+    if (!qty || qty <= 0) return;
+    let entryPrice = realTimePrice;
+    if (orderType === "Limit" && limitPrice) entryPrice = parseFloat(limitPrice);
+    let newPositions = [...positions];
+    newPositions.push({
+      symbol,
+      side,
+      orderType,
+      qty,
+      entryPrice,
+      margin: marginEnabled,
+      leverage,
+      trailingStop: trailingStop ? parseFloat(trailingStop) : null,
+      date: new Date().toLocaleString(),
+      id: Date.now(),
+    });
+    setPositions(newPositions);
+    let newLog = [...tradeLogs];
+    newLog.push({
+      action: "OPEN",
+      symbol,
+      side,
+      qty,
+      entryPrice,
+      time: new Date().toLocaleString(),
+    });
+    setTradeLogs(newLog);
+  };
+
+  const handleClosePosition = (id, partial = false) => {
+    let newPositions = [...positions];
+    let index = newPositions.findIndex((p) => p.id === id);
+    if (index === -1) return;
+    let pos = newPositions[index];
+    let closeQty = partial ? parseFloat(partialCloseQty) : pos.qty;
+    if (!closeQty || closeQty <= 0 || closeQty > pos.qty) return;
+    const closePrice = realTimePrice;
+    let newLog = [...tradeLogs];
+    newLog.push({
+      action: "CLOSE",
+      symbol: pos.symbol,
+      side: pos.side,
+      qty: closeQty,
+      closePrice,
+      time: new Date().toLocaleString(),
+    });
+    setTradeLogs(newLog);
+    if (closeQty < pos.qty) {
+      newPositions[index].qty = pos.qty - closeQty;
+    } else {
+      newPositions.splice(index, 1);
+    }
+    setPositions(newPositions);
+  };
+
+  const handleSetAlert = () => {
+    let newAlerts = [...alerts];
+    newAlerts.push({
+      symbol,
+      price: realTimePrice,
+      note: "Alert set at current price",
+      id: Date.now(),
+    });
+    setAlerts(newAlerts);
+  };
+
+  const toggleIndicators = (ind) => {
+    setAdvancedIndicators({ ...advancedIndicators, [ind]: !advancedIndicators[ind] });
+  };
+
+  const reorderColumns = () => {
+    let newOrder = [...columnOrder];
+    newOrder.reverse();
+    setColumnOrder(newOrder);
+  };
+
+  return (
+    <div style={{ padding: 20, fontFamily: "Arial, sans-serif" }}>
+      <h1>Ultra-Pro Trading Technology</h1>
+      <div style={{ marginBottom: 20 }}>
+        <label style={{ marginRight: 10 }}>
+          <input
+            type="checkbox"
+            checked={demoMode}
+            onChange={(e) => setDemoMode(e.target.checked)}
+          />
+          Demo Mode
+        </label>
+        <button onClick={reorderColumns} style={{ marginLeft: 10 }}>
+          Reorder Columns
+        </button>
+      </div>
+
+      <div style={{ marginBottom: 20 }}>
+        <h2>Advanced Chart (TradingView)</h2>
+        <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+          <label>Interval: </label>
+          <select value={chartInterval} onChange={(e) => setChartInterval(e.target.value)}>
+            <option value="1">1 min</option>
+            <option value="5">5 min</option>
+            <option value="15">15 min</option>
+            <option value="30">30 min</option>
+            <option value="60">1 hour</option>
+            <option value="D">1 day</option>
+          </select>
+          <label style={{ marginLeft: 10 }}>
+            <input
+              type="checkbox"
+              checked={advancedIndicators.ma}
+              onChange={() => toggleIndicators("ma")}
+            />
+            MA
+          </label>
+          <label style={{ marginLeft: 10 }}>
+            <input
+              type="checkbox"
+              checked={advancedIndicators.rsi}
+              onChange={() => toggleIndicators("rsi")}
+            />
+            RSI
+          </label>
+        </div>
+        <div className="tradingview-widget-container" style={{ marginBottom: "20px" }}>
+          <div className="tradingview-widget-container__widget" />
+          <script
+            type="text/javascript"
+            src="https://s3.tradingview.com/tv.js"
+            async
+          />
+          <script
+            type="text/javascript"
+            dangerouslySetInnerHTML={{
+              __html: `
+                new TradingView.widget({
+                  "width": "100%",
+                  "height": 400,
+                  "symbol": "NSE:${symbol}",
+                  "interval": "${chartInterval}",
+                  "timezone": "Asia/Kolkata",
+                  "theme": "dark",
+                  "style": "1",
+                  "locale": "en",
+                  "toolbar_bg": "#f1f3f6",
+                  "enable_publishing": false,
+                  "withdateranges": true,
+                  "hide_side_toolbar": false,
+                  "allow_symbol_change": true,
+                  "container_id": "tradingview_advanced_chart"
+                });
+              `,
+            }}
+          />
+          <div id="tradingview_advanced_chart" />
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 20 }}>
+        <div style={{ flex: 1 }}>
+          <h2>Order Panel</h2>
+          <div style={{ marginBottom: 10 }}>
+            <label>Symbol: </label>
+            <input
+              value={symbol}
+              onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+              style={{ marginLeft: 5 }}
+            />
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <label>Current Price: </label>
+            <strong style={{ marginLeft: 5 }}>₹{realTimePrice}</strong>
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <label>Side: </label>
+            <select value={side} onChange={(e) => setSide(e.target.value)}>
+              <option>Buy</option>
+              <option>Sell</option>
+            </select>
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <label>Order Type: </label>
+            <select value={orderType} onChange={(e) => setOrderType(e.target.value)}>
+              <option>Market</option>
+              <option>Limit</option>
+              <option>Stop-Loss</option>
+            </select>
+          </div>
+          {orderType === "Limit" && (
+            <div style={{ marginBottom: 10 }}>
+              <label>Limit Price: </label>
+              <input
+                type="number"
+                value={limitPrice}
+                onChange={(e) => setLimitPrice(e.target.value)}
+              />
+            </div>
+          )}
+          {orderType === "Stop-Loss" && (
+            <div style={{ marginBottom: 10 }}>
+              <label>Stop Price: </label>
+              <input
+                type="number"
+                value={stopPrice}
+                onChange={(e) => setStopPrice(e.target.value)}
+              />
+            </div>
+          )}
+          <div style={{ marginBottom: 10 }}>
+            <label>Quantity: </label>
+            <input
+              type="number"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+            />
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <label>Trailing Stop (%): </label>
+            <input
+              type="number"
+              value={trailingStop}
+              onChange={(e) => setTrailingStop(e.target.value)}
+            />
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <input
+              type="checkbox"
+              checked={marginEnabled}
+              onChange={(e) => setMarginEnabled(e.target.checked)}
+              id="marginChk"
+            />
+            <label htmlFor="marginChk" style={{ marginLeft: 5 }}>
+              Margin Trade
+            </label>
+          </div>
+          {marginEnabled && (
+            <div style={{ marginBottom: 10 }}>
+              <label>Leverage: </label>
+              <select value={leverage} onChange={(e) => setLeverage(e.target.value)}>
+                <option value={1}>1x</option>
+                <option value={2}>2x</option>
+                <option value={5}>5x</option>
+                <option value={10}>10x</option>
+              </select>
+            </div>
+          )}
+          <div style={{ marginBottom: 10 }}>
+            <input
+              type="checkbox"
+              checked={orderIceberg}
+              onChange={(e) => setOrderIceberg(e.target.checked)}
+              id="icebergChk"
+            />
+            <label htmlFor="icebergChk" style={{ marginLeft: 5 }}>
+              Iceberg Order
+            </label>
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <input
+              type="checkbox"
+              checked={orderOCO}
+              onChange={(e) => setOrderOCO(e.target.checked)}
+              id="ocoChk"
+            />
+            <label htmlFor="ocoChk" style={{ marginLeft: 5 }}>
+              OCO (One-Cancels-Other)
+            </label>
+          </div>
+          <button onClick={handleSubmitOrder} style={{ padding: "6px 12px" }}>
+            Place Order
+          </button>
+          <button
+            onClick={handleSetAlert}
+            style={{ padding: "6px 12px", marginLeft: 10 }}
+          >
+            Set Alert
+          </button>
+        </div>
+
+        <div style={{ flex: 1 }}>
+          <h2>Open Positions</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "#eee" }}>
+                {columnOrder.map((col) => (
+                  <th key={col} style={{ border: "1px solid #ccc", padding: 5 }}>
+                    {col === "symbol" && "Symbol"}
+                    {col === "side" && "Side"}
+                    {col === "orderType" && "Type"}
+                    {col === "qty" && "Qty"}
+                    {col === "entryPrice" && "Price"}
+                    {col === "margin" && "Margin"}
+                    {col === "PnL" && "PnL"}
+                    {col === "date" && "Date"}
+                    {col === "actions" && "Close"}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {positions.map((pos, idx) => {
+                const pnl =
+                  (realTimePrice - pos.entryPrice) *
+                  pos.qty *
+                  (pos.side === "Buy" ? 1 : -1);
+                return (
+                  <tr key={pos.id}>
+                    {columnOrder.includes("symbol") && (
+                      <td style={{ border: "1px solid #ccc", padding: 5 }}>{pos.symbol}</td>
+                    )}
+                    {columnOrder.includes("side") && (
+                      <td style={{ border: "1px solid #ccc", padding: 5 }}>{pos.side}</td>
+                    )}
+                    {columnOrder.includes("orderType") && (
+                      <td style={{ border: "1px solid #ccc", padding: 5 }}>{pos.orderType}</td>
+                    )}
+                    {columnOrder.includes("qty") && (
+                      <td style={{ border: "1px solid #ccc", padding: 5 }}>{pos.qty}</td>
+                    )}
+                    {columnOrder.includes("entryPrice") && (
+                      <td style={{ border: "1px solid #ccc", padding: 5 }}>
+                        ₹{pos.entryPrice}
+                      </td>
+                    )}
+                    {columnOrder.includes("margin") && (
+                      <td style={{ border: "1px solid #ccc", padding: 5 }}>
+                        {pos.margin ? `${pos.leverage}x` : "No"}
+                      </td>
+                    )}
+                    {columnOrder.includes("PnL") && (
+                      <td
+                        style={{
+                          border: "1px solid #ccc",
+                          padding: 5,
+                          color: pnl >= 0 ? "green" : "red",
+                        }}
+                      >
+                        ₹{pnl.toFixed(2)}
+                      </td>
+                    )}
+                    {columnOrder.includes("date") && (
+                      <td style={{ border: "1px solid #ccc", padding: 5 }}>{pos.date}</td>
+                    )}
+                    {columnOrder.includes("actions") && (
+                      <td style={{ border: "1px solid #ccc", padding: 5, textAlign: "center" }}>
+                        <button onClick={() => handleClosePosition(pos.id)}>Close</button>
+                        <div style={{ marginTop: 5 }}>
+                          <input
+                            type="number"
+                            placeholder="Partial Qty"
+                            value={partialCloseQty}
+                            onChange={(e) => setPartialCloseQty(e.target.value)}
+                            style={{ width: 60 }}
+                          />
+                          <button
+                            onClick={() => handleClosePosition(pos.id, true)}
+                            style={{ marginLeft: 5 }}
+                          >
+                            Partial
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+              {positions.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={columnOrder.length}
+                    style={{ border: "1px solid #ccc", padding: 5, textAlign: "center" }}
+                  >
+                    No open positions
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 40, display: "flex", gap: 30 }}>
+        <div style={{ flex: 1 }}>
+          <h3>Alerts</h3>
+          {alerts.length === 0 ? (
+            <p>No alerts set.</p>
+          ) : (
+            <ul>
+              {alerts.map((al) => (
+                <li key={al.id}>
+                  {al.symbol} at ₹{al.price} - {al.note}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div style={{ flex: 1 }}>
+          <h3>Trade Logs</h3>
+          {tradeLogs.length === 0 ? (
+            <p>No logs yet.</p>
+          ) : (
+            <ul>
+              {tradeLogs.map((log, i) => (
+                <li key={i}>
+                  [{log.time}] {log.action} {log.side || ""} {log.symbol} Qty:{log.qty || ""}
+                  {log.closePrice ? ` closed at ₹${log.closePrice}` : ` entry at ₹${log.entryPrice}`}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div style={{ flex: 1 }}>
+          <h3>Watchers</h3>
+          <div style={{ marginBottom: 5 }}>
+            <input
+              type="text"
+              placeholder="User to watch..."
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && e.target.value.trim() !== "") {
+                  setWatchers([...watchers, e.target.value.trim()]);
+                  e.target.value = "";
+                }
+              }}
+            />
+          </div>
+          <ul>
+            {watchers.map((w, idx) => (
+              <li key={idx}>{w}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 40 }}>
+        <h3>Stats</h3>
+        <p>
+          Profit Factor: {profitFactor}
+          {profitFactor > 9998 ? " (No losses yet!)" : ""}
+        </p>
+        <p>Net Margin Usage: ₹{netMarginUsage.toFixed(2)}</p>
+        <p>Demo Mode: {demoMode ? "ON" : "OFF"}</p>
+      </div>
+    </div>
+  );
+}

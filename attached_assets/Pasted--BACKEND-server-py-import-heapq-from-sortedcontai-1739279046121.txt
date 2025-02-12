@@ -1,0 +1,629 @@
+# ---------------------- BACKEND (server.py) ----------------------
+import heapq
+from sortedcontainers import SortedDict
+import uuid
+import time
+from flask import Flask, render_template, jsonify, request
+from flask_socketio import SocketIO
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required
+import numpy as np
+
+app = Flask(__name__)
+app.config["JWT_SECRET_KEY"] = "super-secret-exchange-key"
+jwt = JWTManager(app)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
+
+# ---------------------- FINANCIAL INSTRUMENTS ----------------------
+class Stock:
+    def __init__(self, symbol, name, initial_price):
+        self.symbol = symbol
+        self.name = name
+        self.last_price = initial_price
+        self.circuit_limits = (0.05, 0.05)  # 5% circuit
+        self.bid = None
+        self.ask = None
+        self.volume = 0
+        self.open = initial_price
+        self.high = initial_price
+        self.low = initial_price
+        
+stocks = {
+    'RELIANCE': Stock('RELIANCE', 'Reliance Industries', 2850),
+    'TCS': Stock('TCS', 'Tata Consultancy Services', 3650)
+}
+
+# ---------------------- ORDER MATCHING ENGINE ----------------------
+class OrderBook:
+    def __init__(self):
+        self.bids = SortedDict(lambda x: -x)  # Descending prices
+        self.asks = SortedDict()              # Ascending prices
+        self.orders = {}
+        self.market_orders = []
+    
+    def add_limit_order(self, order):
+        if order.direction == 'BID':
+            if order.price not in self.bids:
+                self.bids[order.price] = []
+            self.bids[order.price].append(order)
+        else:
+            if order.price not in self.asks:
+                self.asks[order.price] = []
+            self.asks[order.price].append(order)
+        self.orders[order.order_id] = order
+    
+    def add_market_order(self, order):
+        self.market_orders.append(order)
+    
+    def remove_order(self, order_id):
+        order = self.orders.get(order_id)
+        if not order:
+            return False
+        if order.direction == 'BID':
+            price_level = self.bids.get(order.price, [])
+        else:
+            price_level = self.asks.get(order.price, [])
+        if order in price_level:
+            price_level.remove(order)
+            if not price_level:
+                del self.bids[order.price] if order.direction == 'BID' else del self.asks[order.price]
+        return True
+
+class MatchingEngine:
+    def __init__(self):
+        self.order_books = {symbol: OrderBook() for symbol in stocks}
+        self.trade_history = []
+        self.sequence_number = 0
+    
+    def match_orders(self, symbol):
+        book = self.order_books[symbol]
+        stock = stocks[symbol]
+        
+        while True:
+            best_bid = book.bids.peekitem(0)[0] if book.bids else None
+            best_ask = book.asks.peekitem(0)[0] if book.asks else None
+            
+            # Check market orders first
+            while book.market_orders:
+                mo = book.market_orders.pop(0)
+                if mo.direction == 'BID':
+                    # Market buy matches with best ask
+                    if not best_ask:
+                        continue
+                    self.execute_trade(mo, book.asks[best_ask][0], best_ask, mo.quantity)
+                else:
+                    # Market sell matches with best bid
+                    if not best_bid:
+                        continue
+                    self.execute_trade(book.bids[best_bid][0], mo, best_bid, mo.quantity)
+            
+            # Limit order matching
+            if not best_bid or not best_ask or best_bid < best_ask:
+                break
+            
+            bid_orders = book.bids[best_bid]
+            ask_orders = book.asks[best_ask]
+            
+            while bid_orders and ask_orders:
+                bid = bid_orders[0]
+                ask = ask_orders[0]
+                
+                trade_qty = min(bid.remaining, ask.remaining)
+                trade_price = ask.price  # Price-time priority
+                
+                self.execute_trade(bid, ask, trade_price, trade_qty)
+                
+                # Update order quantities
+                bid.remaining -= trade_qty
+                ask.remaining -= trade_qty
+                
+                if bid.remaining == 0:
+                    bid_orders.pop(0)
+                if ask.remaining == 0:
+                    ask_orders.pop(0)
+            
+            # Clean empty price levels
+            if not bid_orders:
+                del book.bids[best_bid]
+            if not ask_orders:
+                del book.asks[best_ask]
+    
+    def execute_trade(self, bid, ask, price, quantity):
+        self.sequence_number += 1
+        trade = {
+            'seq': self.sequence_number,
+            'timestamp': time.time_ns(),
+            'symbol': bid.symbol,
+            'price': price,
+            'quantity': quantity,
+            'bid_id': bid.order_id,
+            'ask_id': ask.order_id
+        }
+        self.trade_history.append(trade)
+        
+        # Update stock data
+        stock = stocks[bid.symbol]
+        stock.last_price = price
+        stock.volume += quantity
+        stock.high = max(stock.high, price)
+        stock.low = min(stock.low, price)
+        
+        # Broadcast market data
+        socketio.emit('market_update', {
+            'symbol': bid.symbol,
+            'last': price,
+            'volume': stock.volume,
+            'bid': book.bids.peekitem(0)[0] if book.bids else None,
+            'ask': book.asks.peekitem(0)[0] if book.asks else None,
+            'high': stock.high,
+            'low': stock.low
+        })
+        
+        # Broadcast trade
+        socketio.emit('trade', {
+            **trade,
+            'timestamp': datetime.now().isoformat()
+        })
+
+# ---------------------- RISK MANAGEMENT ----------------------
+class RiskEngine:
+    @staticmethod
+    def validate_order(order):
+        stock = stocks.get(order.symbol)
+        if not stock:
+            return False, "Invalid symbol"
+        
+        # Circuit breaker check
+        if order.price > stock.last_price * (1 + stock.circuit_limits[1]):
+            return False, "Price exceeds upper circuit"
+        if order.price < stock.last_price * (1 - stock.circuit_limits[0]):
+            return False, "Price exceeds lower circuit"
+        
+        # TODO: Add margin checks, position limits
+        return True, ""
+
+# ---------------------- FRONTEND ROUTES ----------------------
+@app.route('/login', methods=['POST'])
+def login():
+    username = request.json.get('username')
+    password = request.json.get('password')
+    # TODO: Real authentication
+    access_token = create_access_token(identity=username)
+    return jsonify(access_token=access_token)
+
+@app.route('/depth/<symbol>')
+@jwt_required()
+def get_depth(symbol):
+    book = engine.order_books[symbol]
+    return jsonify({
+        'bids': {p: len(o) for p, o in book.bids.items()},
+        'asks': {p: len(o) for p, o in book.asks.items()}
+    })
+
+# ---------------------- WEBSOCKET HANDLERS ----------------------
+@socketio.on('place_order')
+@jwt_required()
+def handle_order(data):
+    order = {
+        'order_id': str(uuid.uuid4()),
+        'user_id': get_jwt_identity(),
+        'symbol': data['symbol'],
+        'price': float(data['price']),
+        'quantity': int(data['quantity']),
+        'direction': data['type'].upper(),
+        'order_type': data.get('order_type', 'LIMIT')
+    }
+    
+    valid, reason = RiskEngine.validate_order(order)
+    if not valid:
+        socketio.emit('order_error', {'order_id': order['order_id'], 'reason': reason})
+        return
+    
+    # Add to order book
+    book = engine.order_books[order['symbol']]
+    if order['order_type'] == 'MARKET':
+        book.add_market_order(order)
+    else:
+        book.add_limit_order(order)
+    
+    # Trigger matching
+    engine.match_orders(order['symbol'])
+    
+    # Send confirmation
+    socketio.emit('order_ack', {
+        'order_id': order['order_id'],
+        'status': 'PARTIALLY_FILLED' if order['quantity'] > 0 else 'FILLED'
+    })
+
+# ---------------------- INITIALIZATION ----------------------
+engine = MatchingEngine()
+
+if __name__ == '__main__':
+    socketio.run(app, port=5000, debug=True)
+html
+Copy
+<!-- ---------------------- FRONTEND ---------------------- -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Professional Trading Terminal</title>
+    <link href="https://unpkg.com/lightweight-charts/dist/lightweight-charts.css" rel="stylesheet">
+    <style>
+        body { margin: 0; padding: 20px; background: #0a0e14; color: #c9d1d9; }
+        .grid { 
+            display: grid;
+            grid-template-columns: 300px 1fr 300px;
+            grid-template-rows: 60vh 40vh;
+            gap: 15px;
+            height: 95vh;
+        }
+        .depth-chart { background: #010409; padding: 10px; border: 1px solid #30363d; }
+        #chart { background: #010409; border: 1px solid #30363d; }
+        .order-panel { background: #010409; padding: 15px; border: 1px solid #30363d; }
+        .market-data { grid-column: 1 / -1; background: #010409; padding: 10px; }
+        .bid { color: #00ff00; }
+        .ask { color: #ff0000; }
+        .order-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
+    </style>
+</head>
+<body>
+    <div class="grid">
+        <div class="depth-chart">
+            <h3>Market Depth - RELIANCE</h3>
+            <div id="depth"></div>
+        </div>
+        
+        <div id="chart"></div>
+        
+        <div class="order-panel">
+            <div class="order-row">
+                <select id="orderType">
+                    <option>LIMIT</option>
+                    <option>MARKET</option>
+                    <option>STOP</option>
+                </select>
+                <select id="tif">
+                    <option>GTC</option>
+                    <option>IOC</option>
+                    <option>FOK</option>
+                </select>
+            </div>
+            <div class="order-row">
+                <input type="number" id="price" placeholder="Price" step="0.05">
+                <input type="number" id="qty" placeholder="Quantity" min="1" step="1">
+            </div>
+            <div class="order-row">
+                <button class="bid" onclick="placeOrder('BID')">BUY</button>
+                <button class="ask" onclick="placeOrder('ASK')">SELL</button>
+            </div>
+            <div id="positions"></div>
+        </div>
+        
+        <div class="market-data">
+            <div id="marketStats"></div>
+            <div id="trades"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script>
+        const socket = io()
+        const chart = LightweightCharts.createChart(document.getElementById('chart'), {
+            width: 800,
+            height: 500,
+            layout: { background: '#000000', textColor: 'rgba(255,255,255,0.9)' },
+            grid: { vertLines: { color: '#404040' }, horzLines: { color: '#404040' } },
+            timeScale: { timeVisible: true }
+        })
+        const candlestickSeries = chart.addCandlestickSeries()
+        
+        // Real-time market data
+        socket.on('market_update', data => {
+            updateMarketStats(data)
+            updateDepth(data)
+        })
+        
+        socket.on('trade', trade => {
+            updateTrades(trade)
+            updateChart(trade)
+        })
+        
+        function placeOrder(direction) {
+            const order = {
+                symbol: 'RELIANCE',
+                price: parseFloat(document.getElementById('price').value),
+                quantity: parseInt(document.getElementById('qty').value),
+                type: direction,
+                order_type: document.getElementById('orderType').value,
+                tif: document.getElementById('tif').value
+            }
+            socket.emit('place_order', order)
+        }
+        
+        function updateChart(trade) {
+            const newCandle = {
+                time: Date.now() / 1000,
+                open: trade.price,
+                high: trade.price,
+                low: trade.price,
+                close: trade.price
+            }
+            candlestickSeries.update(newCandle)
+        }
+    </script>
+</body>
+</html>  no just classical stock exchange visually it look real as real 
+
+Reasoned for 7 seconds
+Crafting the HTML
+
+I’m focusing on creating a short HTML snippet for a classical stock exchange look, including an order book, trade feed, and a chart, all while keeping explanations minimal.
+
+Structuring the code
+
+I’m developing a minimal HTML code snippet with a table layout for bids, asks, and trades, complemented by a chart, ensuring no explanations and focusing on a classical stock exchange look.
+
+html
+Copy
+Edit
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Classical Stock Exchange</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #f0f2f5;
+      font-family: Arial, sans-serif;
+    }
+    header {
+      background: #002366;
+      color: #fff;
+      padding: 10px;
+      font-size: 1.4rem;
+    }
+    .container {
+      display: grid;
+      grid-template-columns: 2fr 1.4fr;
+      grid-template-rows: 400px 250px;
+      gap: 10px;
+      padding: 10px;
+      height: calc(100vh - 60px);
+      box-sizing: border-box;
+    }
+    .chart-area {
+      grid-column: 1 / 2;
+      grid-row: 1 / 2;
+      background: #fff;
+      border: 1px solid #ccc;
+      position: relative;
+    }
+    #chart {
+      width: 100%;
+      height: 100%;
+    }
+    .orderbook {
+      grid-column: 2 / 3;
+      grid-row: 1 / 2;
+      background: #fff;
+      border: 1px solid #ccc;
+      display: grid;
+      grid-template-rows: 1fr 1fr;
+    }
+    .orderbook-section {
+      overflow-y: auto;
+      border-bottom: 1px solid #ccc;
+      padding: 5px;
+    }
+    .orderbook-section:last-child {
+      border-bottom: none;
+    }
+    .orderbook-section h3 {
+      margin: 0 0 5px;
+      font-size: 1rem;
+      text-align: center;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 4px;
+      text-align: right;
+    }
+    th {
+      background: #eee;
+    }
+    .trades {
+      grid-column: 1 / 3;
+      grid-row: 2 / 3;
+      background: #fff;
+      border: 1px solid #ccc;
+      overflow-y: auto;
+      padding: 5px;
+    }
+    .trades h3 {
+      margin: 0 0 5px;
+      font-size: 1rem;
+    }
+    .trades-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .trades-table th, .trades-table td {
+      border: 1px solid #ddd;
+      padding: 4px;
+      text-align: right;
+    }
+    .trades-table th {
+      background: #eee;
+    }
+    .center {
+      text-align: center;
+    }
+    .green {
+      color: green;
+    }
+    .red {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <header>Classical Stock Exchange</header>
+  <div class="container">
+    <div class="chart-area">
+      <div id="chart"></div>
+    </div>
+    <div class="orderbook">
+      <div class="orderbook-section" id="bids">
+        <h3>Order Book - Bids</h3>
+        <table id="bids-table">
+          <thead>
+            <tr><th>Price</th><th>Qty</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="orderbook-section" id="asks">
+        <h3>Order Book - Asks</h3>
+        <table id="asks-table">
+          <thead>
+            <tr><th>Price</th><th>Qty</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="trades" id="trades">
+      <h3>Recent Trades</h3>
+      <table class="trades-table" id="trades-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Price</th>
+            <th>Qty</th>
+            <th>Side</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+  <script>
+    let chartContainer = document.getElementById('chart');
+    let chart = LightweightCharts.createChart(chartContainer, {
+      width: chartContainer.clientWidth,
+      height: chartContainer.clientHeight,
+      layout: {
+        background: { type: 'solid', color: '#ffffff' },
+        textColor: '#333'
+      },
+      timeScale: { timeVisible: true }
+    });
+    let candleSeries = chart.addCandlestickSeries();
+    let timeSeed = Date.now() / 1000;
+    let lastPrice = 2300;
+    let data = [];
+    for (let i = 0; i < 50; i++) {
+      let open = lastPrice + ((Math.random() - 0.5) * 5);
+      let close = open + ((Math.random() - 0.5) * 5);
+      let high = Math.max(open, close) + Math.random() * 2;
+      let low = Math.min(open, close) - Math.random() * 2;
+      data.push({
+        time: (timeSeed - (50 - i)*60),
+        open: parseFloat(open.toFixed(2)),
+        high: parseFloat(high.toFixed(2)),
+        low: parseFloat(low.toFixed(2)),
+        close: parseFloat(close.toFixed(2))
+      });
+      lastPrice = close;
+    }
+    candleSeries.setData(data);
+
+    let bidsBody = document.querySelector('#bids-table tbody');
+    let asksBody = document.querySelector('#asks-table tbody');
+    let tradesBody = document.querySelector('#trades-table tbody');
+
+    function mockOrders() {
+      let bids = [];
+      let asks = [];
+      for (let i = 0; i < 10; i++) {
+        let price = (lastPrice - (Math.random() * 10)).toFixed(2);
+        let qty = Math.floor(Math.random() * 100) + 1;
+        bids.push({ price, qty });
+      }
+      for (let i = 0; i < 10; i++) {
+        let price = (lastPrice + (Math.random() * 10)).toFixed(2);
+        let qty = Math.floor(Math.random() * 100) + 1;
+        asks.push({ price, qty });
+      }
+      bids.sort((a, b) => b.price - a.price);
+      asks.sort((a, b) => a.price - b.price);
+      bidsBody.innerHTML = bids.map(b => `<tr><td>${b.price}</td><td>${b.qty}</td></tr>`).join('');
+      asksBody.innerHTML = asks.map(a => `<tr><td>${a.price}</td><td>${a.qty}</td></tr>`).join('');
+    }
+
+    function mockTrades() {
+      let trades = [];
+      for (let i = 0; i < 5; i++) {
+        let price = (lastPrice + ((Math.random() - 0.5) * 5)).toFixed(2);
+        let qty = Math.floor(Math.random() * 50) + 1;
+        let side = (Math.random() > 0.5) ? 'Buy' : 'Sell';
+        trades.push({ time: new Date().toLocaleTimeString(), price, qty, side });
+      }
+      tradesBody.innerHTML = trades.map(t => `
+        <tr>
+          <td>${t.time}</td>
+          <td>${t.price}</td>
+          <td>${t.qty}</td>
+          <td class="${t.side === 'Buy' ? 'green' : 'red'}">${t.side}</td>
+        </tr>
+      `).join('');
+    }
+
+    mockOrders();
+    mockTrades();
+
+    setInterval(() => {
+      let lastCandle = data[data.length - 1];
+      let open = lastCandle.close;
+      let close = open + ((Math.random() - 0.5) * 5);
+      let high = Math.max(open, close) + Math.random() * 2;
+      let low = Math.min(open, close) - Math.random() * 2;
+      let newCandle = {
+        time: lastCandle.time + 60,
+        open: parseFloat(open.toFixed(2)),
+        high: parseFloat(high.toFixed(2)),
+        low: parseFloat(low.toFixed(2)),
+        close: parseFloat(close.toFixed(2))
+      };
+      data.push(newCandle);
+      candleSeries.update(newCandle);
+      lastPrice = close;
+      mockOrders();
+      mockTrades();
+    }, 5000);
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+Search
+
+
+ChatGPT can make mistakes. Check important info.
